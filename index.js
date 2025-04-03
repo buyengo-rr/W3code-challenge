@@ -1,14 +1,16 @@
-const API_URL = "http://localhost:3000/films";
+const API_URL = "http://localhost:3000";
 
-// Fetch and display the first movie
+// fetch and display the first movie
 const fetchFirstMovie = () => {
-    fetch(`${API_URL}/1`)
-        .then(response => response.json())
-        .then(data => displayMovieDetails(data))
-        .catch(error => console.error("Error fetching first movie:", error));
+    fetch(`${API_URL}/films/1`)
+    .then(response => response.json())
+    .then(data => {
+        displayMovieDetails(data);
+    })
+    .catch(error => console.error("Error fetching first movie:", error));
 };
 
-// Display movie details
+// displaying movie details
 const displayMovieDetails = (movie) => {
     document.getElementById("poster").src = movie.poster;
     document.getElementById("title").textContent = movie.title;
@@ -16,42 +18,41 @@ const displayMovieDetails = (movie) => {
     document.getElementById("showtime").textContent = `Showtime: ${movie.showtime}`;
 
     const availableTickets = movie.capacity - movie.tickets_sold;
-    document.getElementById("available-tickets").textContent = `Available Tickets: ${availableTickets}`;
+    document.getElementById("available-ticket").textContent = `Available Tickets: ${availableTickets}`;
 
     const buyButton = document.getElementById("buy-ticket");
     buyButton.disabled = availableTickets === 0;
-    buyButton.textContent = availableTickets === 0 ? "Sold Out" : "🎟️ Buy Ticket";
+    buyButton.textContent = availableTickets === 0 ? "Sold Out" : "Buy Ticket";
 
-    // Click event to purchase ticket
-    buyButton.onclick = () => purchaseTicket(movie.id, availableTickets);
+    buyButton.onclick = () => purchaseTicket(movie);
 };
 
-// Fetch and display all movies in the sidebar
+// fetching and displaying all movies
 const fetchAllMovies = () => {
-    fetch(API_URL)
-        .then(response => response.json())
-        .then(data => displayMovieMenu(data))
-        .catch(error => console.error("Error fetching movies:", error));
+    fetch(`${API_URL}/films`)
+    .then(response => response.json())
+    .then(data => {
+        displayMovieMenu(data);
+    })
+    .catch(error => console.error("Error fetching movies:", error));
 };
 
-// Display movie list in the sidebar
+// displaying the movie list
 const displayMovieMenu = (movies) => {
     const filmsList = document.getElementById("films");
-    filmsList.innerHTML = ""; // Clear previous list
+    filmsList.innerHTML = ""; // clears previous movies
 
     movies.forEach(movie => {
         const li = document.createElement("li");
         li.textContent = movie.title;
         li.classList.add("film", "item");
 
-        // Check ticket availability
         if (movie.capacity - movie.tickets_sold === 0) {
             li.classList.add("sold-out");
-            li.textContent += " (Sold Out)";
         }
 
         // Click event to display movie details
-        li.addEventListener("click", () => fetchMovieById(movie.id));
+        li.addEventListener("click", () => displayMovieDetails(movie));
 
         // Delete button
         const deleteButton = document.createElement("button");
@@ -59,6 +60,7 @@ const displayMovieMenu = (movies) => {
         deleteButton.classList.add("delete-button");
         deleteButton.addEventListener("click", (e) => {
             e.stopPropagation();
+            deleteButton.disabled = true;
             deleteMovie(movie.id);
         });
 
@@ -67,42 +69,33 @@ const displayMovieMenu = (movies) => {
     });
 };
 
-// Fetch movie by ID when clicked from sidebar
-const fetchMovieById = (movieId) => {
-    fetch(`${API_URL}/${movieId}`)
-        .then(response => response.json())
-        .then(movie => displayMovieDetails(movie))
-        .catch(error => console.error(`Error fetching movie ${movieId}:`, error));
+// purchasing a ticket
+const purchaseTicket = (movie) => {
+    if (movie.tickets_sold >= movie.capacity) return;
+    
+    movie.tickets_sold += 1;
+
+    // updating db.json with count
+    fetch(`${API_URL}/films/${movie.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tickets_sold: movie.tickets_sold })
+    })
+    .then(response => response.json())
+    .then(updatedMovie => {
+        displayMovieDetails(updatedMovie);
+        fetchAllMovies(); // Update movie list
+    })
+    .catch(error => console.error("Error purchasing ticket:", error));
 };
 
-// Purchase a ticket
-const purchaseTicket = (movieId, availableTickets) => {
-    if (availableTickets > 0) {
-        fetch(`${API_URL}/${movieId}`)
-            .then(response => response.json())
-            .then(movie => {
-                const updatedTicketsSold = movie.tickets_sold + 1;
-
-                return fetch(`${API_URL}/${movieId}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ tickets_sold: updatedTicketsSold })
-                });
-            })
-            .then(response => response.json())
-            .then(updatedMovie => {
-                displayMovieDetails(updatedMovie);
-                fetchAllMovies(); // Update sidebar movie list
-            })
-            .catch(error => console.error("Error purchasing ticket:", error));
-    }
-};
-
-// Delete a movie
+// deleting a movie
 const deleteMovie = (movieId) => {
-    fetch(`${API_URL}/${movieId}`, { method: "DELETE" })
-        .then(() => fetchAllMovies()) // Refresh movie list
-        .catch(error => console.error(`Error deleting movie ${movieId}:`, error));
+    fetch(`${API_URL}/films/${movieId}`, { method: "DELETE" })
+    .then(() => {
+        fetchAllMovies(); // Refresh movie list
+    })
+    .catch(error => console.error("Error deleting movie:", error));
 };
 
 // Initialize the app
